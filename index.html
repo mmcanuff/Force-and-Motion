@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Soap Box Car Surface & Wheel Simulator</title>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; }
+        canvas { background-size: cover; display: block; margin: 0 auto; border: 1px solid black; }
+    </style>
+</head>
+<body>
+    <h2>Soap Box Car Surface & Wheel Simulator</h2>
+    <label for="surface">Select Surface Type:</label>
+    <select id="surface">
+        <option value="asphalt">Asphalt</option>
+        <option value="gravel">Gravel</option>
+        <option value="grass">Grass</option>
+    </select>
+    <label for="wheelType">Select Wheel Type:</label>
+    <select id="wheelType">
+        <option value="unigrip">UniGrip</option>
+        <option value="zglas">Z-Glas</option>
+    </select>
+    <button onclick="startSimulation()">Run Simulation</button>
+    <p id="timerDisplay">Time: 0.0s</p>
+    <canvas id="simulationCanvas" width="800" height="600"></canvas>
+
+    <script>
+        let carX, carY, velocity, startTime, elapsedTime;
+        let surfaceFriction = { 'asphalt': 0.02, 'gravel': 0.05, 'grass': 0.1 };
+        let wheelResistance = { 'unigrip': 0.03, 'zglas': 0.01 };
+        let carImage = new Image();
+        carImage.src = 'https://static.thenounproject.com/png/333147-200.png';
+        let startX = 400, startY = 25, finishY = 450;
+        let mass = 250;
+
+        function startSimulation() {
+            let surfaceImages = {
+                'asphalt': 'https://img.equipmentworld.com/files/base/randallreilly/all/image/2014/10/eqw.Asphalt-Road_full2-e1370867938412.png',
+                'gravel': 'https://cottagelife.com/wp-content/uploads/2022/11/shutterstock_1124845940.jpg',
+                'grass': 'https://www.kipogeorgiki.gr/image/data/SPO_Gazon/Photo-Kathgorias-Sporoi-Gazon.jpg'
+            };
+            
+            let surface = document.getElementById("surface").value;
+            document.getElementById("simulationCanvas").style.backgroundImage = `url('${surfaceImages[surface]}')`;
+            
+            let wheelType = document.getElementById("wheelType").value;
+            let friction = surfaceFriction[surface] + wheelResistance[wheelType];
+            let dt = 0.1;
+            
+            carX = startX;
+            carY = startY;
+            velocity = 0;
+            startTime = performance.now();
+            elapsedTime = 0;
+            
+            function update() {
+                elapsedTime = (performance.now() - startTime) / 1000;
+                document.getElementById("timerDisplay").innerText = `Time: ${elapsedTime.toFixed(2)}s`;
+                
+                let weight = mass * 9.81;
+                let rollingResistance = friction * mass * 9.81;
+                let netForce = weight - rollingResistance;
+                let acceleration = (weight - rollingResistance) / mass;
+                if (surface === 'asphalt') acceleration *= 1.2; // Faster acceleration on asphalt // Faster acceleration on asphalt
+                if (surface === 'gravel') acceleration *= 0.9; // Slower acceleration on gravel
+                if (surface === 'grass') acceleration *= 0.6; // Significantly slower acceleration on grass // Slower acceleration on gravel
+                velocity += acceleration * dt;
+                carY += velocity * dt * 5;
+                
+                drawSimulation();
+                
+                if (carY >= finishY) {
+                    velocity = 0;
+                    elapsedTime = (performance.now() - startTime) / 1000;
+                    document.getElementById('timerDisplay').innerText = `Time: ${elapsedTime.toFixed(2)}s`;
+                    drawFinishMessage();
+                    return;
+                }
+                requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        }
+        
+        function drawSimulation() {
+            let canvas = document.getElementById("simulationCanvas");
+            let ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(startX, finishY);
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            
+            ctx.drawImage(carImage, carX - 25, carY - 15, 50, 30);
+        }
+
+        function drawFinishMessage() {
+            let canvas = document.getElementById("simulationCanvas");
+            let ctx = canvas.getContext("2d");
+            ctx.fillStyle = "black";
+            ctx.font = "20px Arial";
+            ctx.fillText("Finished! Time: " + elapsedTime.toFixed(2) + "s", startX + 20, finishY - 20);
+        }
+    </script>
+</body>
+</html>
