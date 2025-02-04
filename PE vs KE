@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Soap Box Car Ramp Simulator</title>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; }
+        canvas { background-size: cover; display: block; margin: 0 auto; border: 1px solid black; }
+        .slider-container, .options-container { margin: 20px; }
+        table { margin: 20px auto; border-collapse: collapse; width: 60%; }
+        th, td { border: 1px solid black; padding: 8px; text-align: center; }
+        th { background-color: #f4f4f4; }
+    </style>
+</head>
+<body>
+    <h2>Soap Box Car Ramp Simulator</h2>
+
+    <label for="rampHeight">Adjust Ramp Height (m):</label>
+    <input type="range" id="rampHeight" min="1" max="10" value="5" step="0.5" oninput="updateRampValue()">
+    <span id="rampValue">5m</span>
+
+    <br><br>
+    <button onclick="startSimulation()">Run Simulation</button>
+    <button onclick="resetTable()">Reset Table</button>
+    
+    <p id="timerDisplay">Time: 0.0s</p>
+
+    <canvas id="simulationCanvas" width="800" height="600"></canvas>
+
+    <h3>Energy Log</h3>
+    <table id="energyTable">
+        <tr>
+            <th>Time (s)</th>
+            <th>Potential Energy (J)</th>
+            <th>Kinetic Energy (J)</th>
+        </tr>
+    </table>
+
+    <script>
+        let carX, carY, velocity, startTime, elapsedTime;
+        let mass = 250;
+        let gravity = 9.81;
+        let friction = 0.05;
+        let carImage = new Image();
+        carImage.src = 'https://static.thenounproject.com/png/333147-200.png';
+        let startX = 400, startY = 25, finishY = 450;
+        let lastLoggedTime = 0;
+
+        function updateRampValue() {
+            document.getElementById("rampValue").innerText = document.getElementById("rampHeight").value + "m";
+        }
+
+        function resetTable() {
+            let table = document.getElementById("energyTable");
+            table.innerHTML = `
+                <tr>
+                    <th>Time (s)</th>
+                    <th>Potential Energy (J)</th>
+                    <th>Kinetic Energy (J)</th>
+                </tr>`;
+        }
+
+        function startSimulation() {
+            resetTable(); // Automatically clear table before each new run
+
+            let rampHeight = parseFloat(document.getElementById("rampHeight").value);
+            let rampAngle = Math.atan(rampHeight / 10);
+
+            let acceleration = gravity * Math.sin(rampAngle) - friction * gravity * Math.cos(rampAngle);
+            let dt = 0.1;
+
+            carX = startX;
+            carY = startY;
+            velocity = 0;
+            startTime = performance.now();
+            elapsedTime = 0;
+            lastLoggedTime = 0;
+
+            function update() {
+                elapsedTime = (performance.now() - startTime) / 1000;
+                document.getElementById("timerDisplay").innerText = `Time: ${elapsedTime.toFixed(2)}s`;
+
+                velocity += acceleration * dt;
+                carY += velocity * dt * 5;
+
+                let height = rampHeight * (1 - (carY - startY) / (finishY - startY));
+                let PE = mass * gravity * height;
+                let KE = 0.5 * mass * velocity ** 2;
+
+                drawSimulation(PE, KE);
+
+                if (elapsedTime >= lastLoggedTime + 0.25 || carY >= finishY) {
+                    logEnergyData(elapsedTime, PE, KE);
+                    lastLoggedTime = elapsedTime;
+                }
+
+                if (carY >= finishY) {
+                    velocity = 0;
+                    elapsedTime = (performance.now() - startTime) / 1000;
+                    document.getElementById('timerDisplay').innerText = `Time: ${elapsedTime.toFixed(2)}s`;
+                    logEnergyData(elapsedTime, PE, KE); // Log final energy data
+                    drawFinishMessage();
+                    return;
+                }
+                requestAnimationFrame(update);
+            }
+
+            logEnergyData(0, mass * gravity * rampHeight, 0); // Log initial energy values
+            requestAnimationFrame(update);
+        }
+
+        function logEnergyData(time, PE, KE) {
+            let table = document.getElementById("energyTable");
+            let row = table.insertRow(-1);
+            row.insertCell(0).innerText = time.toFixed(2);
+            row.insertCell(1).innerText = PE.toFixed(2);
+            row.insertCell(2).innerText = KE.toFixed(2);
+        }
+
+        function drawSimulation(PE, KE) {
+            let canvas = document.getElementById("simulationCanvas");
+            let ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Asphalt Background
+            canvas.style.backgroundImage = "url('https://img.equipmentworld.com/files/base/randallreilly/all/image/2014/10/eqw.Asphalt-Road_full2-e1370867938412.png')";
+
+            // Draw ramp line
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(startX, finishY);
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            // Draw Car with a White Outline
+            ctx.beginPath();
+            ctx.arc(carX, carY, 15, 0, Math.PI * 2);
+            ctx.fillStyle = "red";
+            ctx.fill();
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Display Energy on Canvas
+            ctx.fillStyle = "yellow";
+            ctx.font = "16px Arial";
+            ctx.fillText(`PE: ${PE.toFixed(2)} J`, 20, 50);
+            ctx.fillText(`KE: ${KE.toFixed(2)} J`, 20, 70);
+        }
+
+        function drawFinishMessage() {
+            let canvas = document.getElementById("simulationCanvas");
+            let ctx = canvas.getContext("2d");
+            ctx.fillStyle = "white";
+            ctx.font = "20px Arial";
+            ctx.fillText("Finished! Time: " + elapsedTime.toFixed(2) + "s", startX + 20, finishY - 20);
+        }
+    </script>
+</body>
+</html>
