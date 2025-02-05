@@ -84,7 +84,7 @@
 
                 let height = rampHeight * (1 - (carY - startY) / (finishY - startY));
                 let PE = Math.max(mass * gravity * height, 0); // Ensure PE is never negative
-                let KE = 0.125 * mass * velocity ** 2;
+                let KE = 0.0625 * mass * velocity ** 2;
 
                 drawSimulation(PE, KE);
 
