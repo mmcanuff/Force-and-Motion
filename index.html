@@ -4,7 +4,12 @@
     <title>Soap Box Car Surface & Wheel Simulator</title>
     <style>
         body { text-align: center; font-family: Arial, sans-serif; }
-        canvas { background-size: cover; display: block; margin: 0 auto; border: 1px solid black; }
+        canvas { 
+            background-size: cover; 
+            display: block; 
+            margin: 0 auto; 
+            border: 1px solid black; 
+        }
     </style>
 </head>
 <body>
@@ -26,27 +31,35 @@
 
     <script>
         let carX, carY, velocity, startTime, elapsedTime;
+        // Surface friction and wheel resistance values
         let surfaceFriction = { 'asphalt': 0.02, 'gravel': 0.05, 'grass': 0.1 };
-        let wheelResistance = { 'unigrip': 0.03, 'zglas': 0.01 };
-        let carImage = new Image();
-        carImage.src = 'https://static.thenounproject.com/png/333147-200.png';
+        let wheelResistance = { 'unigrip': 0.01, 'zglas': 0.04 };
+        // Car image is no longer used for drawing; we draw a circle instead.
+        // For reference, carImage.src = 'https://static.thenounproject.com/png/333147-200.png';
         let startX = 400, startY = 25, finishY = 450;
-        let mass = 250;
+        let mass = 250; // Total mass of car and driver
+
+        // Global variable to store the current surface selection
+        let currentSurface = 'asphalt';
+
+        // Surface image URLs
+        let surfaceImages = {
+            'asphalt': 'https://img.equipmentworld.com/files/base/randallreilly/all/image/2014/10/eqw.Asphalt-Road_full2-e1370867938412.png',
+            'gravel': 'https://cottagelife.com/wp-content/uploads/2022/11/shutterstock_1124845940.jpg',
+            'grass': 'https://www.kipogeorgiki.gr/image/data/SPO_Gazon/Photo-Kathgorias-Sporoi-Gazon.jpg'
+        };
 
         function startSimulation() {
-            let surfaceImages = {
-                'asphalt': 'https://img.equipmentworld.com/files/base/randallreilly/all/image/2014/10/eqw.Asphalt-Road_full2-e1370867938412.png',
-                'gravel': 'https://cottagelife.com/wp-content/uploads/2022/11/shutterstock_1124845940.jpg',
-                'grass': 'https://www.kipogeorgiki.gr/image/data/SPO_Gazon/Photo-Kathgorias-Sporoi-Gazon.jpg'
-            };
-            
-            let surface = document.getElementById("surface").value;
-            document.getElementById("simulationCanvas").style.backgroundImage = `url('${surfaceImages[surface]}')`;
+            // Set the current surface based on user selection and update the canvas background
+            currentSurface = document.getElementById("surface").value;
+            document.getElementById("simulationCanvas").style.backgroundImage = `url('${surfaceImages[currentSurface]}')`;
             
             let wheelType = document.getElementById("wheelType").value;
-            let friction = surfaceFriction[surface] + wheelResistance[wheelType];
+            // Total friction is the sum of surface friction and wheel resistance
+            let friction = surfaceFriction[currentSurface] + wheelResistance[wheelType];
             let dt = 0.1;
             
+            // Initialize the car at the top of the ramp
             carX = startX;
             carY = startY;
             velocity = 0;
@@ -57,18 +70,24 @@
                 elapsedTime = (performance.now() - startTime) / 1000;
                 document.getElementById("timerDisplay").innerText = `Time: ${elapsedTime.toFixed(2)}s`;
                 
+                // Basic force calculations: weight drives the car downward, friction resists it
                 let weight = mass * 9.81;
                 let rollingResistance = friction * mass * 9.81;
                 let netForce = weight - rollingResistance;
-                let acceleration = (weight - rollingResistance) / mass;
-                if (surface === 'asphalt') acceleration *= 1.2; // Faster acceleration on asphalt // Faster acceleration on asphalt
-                if (surface === 'gravel') acceleration *= 0.9; // Slower acceleration on gravel
-                if (surface === 'grass') acceleration *= 0.6; // Significantly slower acceleration on grass // Slower acceleration on gravel
+                let acceleration = netForce / mass;
+                
+                // Adjust acceleration for different surfaces:
+                if (currentSurface === 'asphalt') acceleration *= 1.2; // Faster on asphalt
+                if (currentSurface === 'gravel') acceleration *= 0.9;   // Slower on gravel
+                if (currentSurface === 'grass') acceleration *= 0.6;    // Significantly slower on grass
+                
                 velocity += acceleration * dt;
+                // Car moves only along the Y-axis
                 carY += velocity * dt * 5;
                 
                 drawSimulation();
                 
+                // Stop simulation when the car reaches or exceeds finishY
                 if (carY >= finishY) {
                     velocity = 0;
                     elapsedTime = (performance.now() - startTime) / 1000;
@@ -86,23 +105,31 @@
             let ctx = canvas.getContext("2d");
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
+            // Draw the ramp as a vertical line from (startX, startY) to (startX, finishY)
             ctx.beginPath();
             ctx.moveTo(startX, startY);
             ctx.lineTo(startX, finishY);
-            ctx.strokeStyle = 'black';
+            // Use a high-contrast color based on surface selection
+            ctx.strokeStyle = (currentSurface === 'asphalt') ? 'white' : 'black';
             ctx.lineWidth = 5;
             ctx.stroke();
             
-            ctx.drawImage(carImage, carX - 25, carY - 15, 50, 30);
+            // Draw the car as a circle
+            ctx.beginPath();
+            // Use a contrasting fill color: red on asphalt, black otherwise
+            ctx.fillStyle = (currentSurface === 'asphalt') ? 'red' : 'black';
+            ctx.arc(carX, carY, 15, 0, 2 * Math.PI);
+            ctx.fill();
         }
-
+        
         function drawFinishMessage() {
             let canvas = document.getElementById("simulationCanvas");
             let ctx = canvas.getContext("2d");
-            ctx.fillStyle = "black";
+            ctx.fillStyle = "white";
             ctx.font = "20px Arial";
             ctx.fillText("Finished! Time: " + elapsedTime.toFixed(2) + "s", startX + 20, finishY - 20);
         }
     </script>
 </body>
 </html>
+
