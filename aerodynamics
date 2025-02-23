@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aerodynamics and Air Resistance Simulation</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+            display: block;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center;">Aerodynamics and Air Resistance Simulation</h1>
+    <canvas id="raceCanvas" width="800" height="400"></canvas>
+    <div style="text-align: center;">
+        <label for="driverPosition">Driver Position:</label>
+        <select id="driverPosition" onchange="changeDriverPosition(this.value)">
+            <option value="straight">Sitting Straight</option>
+            <option value="crouching">Crouching</option>
+            <option value="leaning">Leaning Forward</option>
+        </select>
+        <label for="windToggle">Wind:</label>
+        <button id="windToggle" onclick="toggleWind()">Off</button>
+        <span id="windValue">0</span>
+        <button onclick="startSimulation()">Start Simulation</button>
+        <p>Time: <span id="timeElapsed">0</span> seconds</p>
+        <p>Distance: <span id="distanceTravelled">0</span> px</p>
+    </div>
+    <script>
+        const canvas = document.getElementById("raceCanvas");
+        const ctx = canvas.getContext("2d");
+        
+        // Load background image
+        const background = new Image();
+        background.src = "https://s1.wklcdn.com/image_285/8571632/119376420/76528237.400x300.jpg";
+        background.onload = function () {
+            draw(); // Draw background and car before simulation starts
+        };
+        
+        // Car properties
+        const car = {
+            x: 350, // Start position on ramp
+            y: 120, // Start height on ramp
+            velocity: 0,
+            acceleration: 0.2, // Gravity
+            drag: 0.01, // Wind resistance
+            maxSpeed: 10,
+            driverPosition: "straight", // User-controlled
+        };
+        
+        // Wind properties (user-controlled)
+        let windEnabled = false;
+        let simulationRunning = false;
+        let startTime, endTime;
+        
+        // Load car image
+        const carImg = new Image();
+        carImg.src = "https://static.thenounproject.com/png/333147-512.png"; 
+        
+        // Handle user inputs
+        function changeDriverPosition(position) {
+            car.driverPosition = position;
+            if (position === "crouching") {
+                car.drag = 0.0025;
+                car.acceleration = 0.3; // Faster acceleration due to less air resistance // Significantly less air resistance // Less air resistance
+            } else if (position === "leaning") {
+                car.drag = 0.006;
+                car.acceleration = 0.25; // Moderate acceleration // Moderate air resistance
+            } else {
+                car.drag = 0.012;
+                car.acceleration = 0.2; // Slowest acceleration due to most air resistance // Most air resistance // Default resistance
+            }
+        }
+        
+        function toggleWind() {
+            windEnabled = !windEnabled;
+            document.getElementById("windToggle").innerText = windEnabled ? "On" : "Off";
+        }
+        
+        function startSimulation() {
+            if (!simulationRunning) {
+                simulationRunning = true;
+                startTime = performance.now();
+                car.x = 350;
+                car.y = 120;
+                car.velocity = 0;
+                requestAnimationFrame(gameLoop);
+            }
+        }
+        
+        // Simulation loop
+        function update() {
+            if (!simulationRunning) return;
+            
+            // Apply gravity
+            car.velocity += car.acceleration;
+            
+            // Apply wind resistance
+            if (windEnabled) {
+                car.velocity -= car.drag * 0.5; // Increased wind impact
+            } // Increase wind impact
+            
+            // Limit max speed
+            if (car.velocity > car.maxSpeed) {
+                car.velocity = car.maxSpeed;
+            }
+            if (car.velocity < 0) {
+                car.velocity = 0;
+            }
+            
+            // Move car down the ramp
+            // car.x remains the same
+            car.y += car.velocity;
+            car.y += car.velocity * 0.5; // Adjust based on ramp slope
+            
+            document.getElementById("distanceTravelled").innerText = (Math.round((car.y - 120) * 0.1)).toFixed(1) + ' m';
+            
+            if (car.y >= 350) { // Finish line
+                endTime = performance.now();
+                let timeTaken = ((endTime - startTime) / 1000).toFixed(2);
+                document.getElementById("timeElapsed").innerText = timeTaken;
+                simulationRunning = false;
+            }
+        }
+        
+        // Draw scene
+        function draw() {
+            drawRamp();
+            drawGrid();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
+            ctx.drawImage(carImg, car.x, car.y, 50, 30);
+        }
+        
+        // Main loop
+        function drawGrid() {
+            ctx.strokeStyle = 'gray';
+            ctx.lineWidth = 0.5;
+            
+            // Draw vertical grid lines
+            for (let x = 0; x < canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Draw horizontal grid lines
+            for (let y = 0; y < canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Draw x and y axes
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height / 2);
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+        }
+
+        function drawRamp() {
+            ctx.strokeStyle = 'brown';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(350, 120);
+            ctx.lineTo(350, 200);
+            ctx.stroke();
+        }
+
+        function gameLoop() {
+            if (simulationRunning) {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+    </script>
+</body>
+</html>
