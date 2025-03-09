@@ -2,211 +2,173 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Soap Box Derby: Accelerate and Measure Simulation</title>
+  <title>Gravity and Acceleration Simulation (Canvas Only)</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
+    body { 
+      margin: 0; 
+      font-family: sans-serif; 
+      background: #202020; 
+      color: #fff; 
     }
-    #controls {
-      margin-bottom: 20px;
+    #info, #controls {
+      position: absolute; 
+      padding: 10px; 
+      background: rgba(0,0,0,0.6); 
+      border-radius: 4px;
     }
-    #simCanvas {
-      border: 1px solid #000;
-      background-color: #f9f9f9;
-      display: block;
-      margin-bottom: 20px;
-    }
-    .indicator {
-      font-weight: bold;
-      color: red;
-    }
-    .output p {
-      margin: 5px 0;
+    #info { top: 10px; left: 10px; }
+    #controls { top: 10px; right: 10px; }
+    #controls select, #controls button { margin-top: 5px; }
+    canvas { 
+      display: block; 
+      margin: 0 auto; 
+      background: #303030;
     }
   </style>
 </head>
 <body>
-  <h1>Soap Box Derby: Accelerate and Measure Simulation</h1>
+  <div id="info">
+    <strong>Simulation Info</strong><br>
+    Time: <span id="time">0.00</span> s<br>
+    Ramp Distance: <span id="distance">10.00</span> ft
+  </div>
   <div id="controls">
-    <label for="rampHeight">Ramp Height:</label>
-    <select id="rampHeight">
-      <option value="0.5">Low</option>
-      <option value="1.0" selected>Medium</option>
-      <option value="1.5">High</option>
+    <strong>Ramp Settings</strong><br>
+    Ramp Height: 
+    <select id="rampHeightSelect">
+      <option value="1">Low (1 ft)</option>
+      <option value="3">Medium (3 ft)</option>
+      <option value="5">High (5 ft)</option>
     </select>
-    <button id="startBtn">Start Simulation</button>
-    <button id="resetBtn">Reset</button>
+    <br>
+    <button id="startButton">Start Simulation</button>
   </div>
-  <canvas id="simCanvas" width="600" height="300"></canvas>
-  <div class="output">
-    <p>Distance: <span id="distanceDisplay">0.00</span> m</p>
-    <p>Time: <span id="timeDisplay">0.00</span> sec</p>
-    <p>Acceleration Status: <span id="accelIndicator" class="indicator">-</span></p>
-  </div>
-
+  <canvas id="canvas" width="600" height="400"></canvas>
+  
   <script>
-    // Get DOM elements
-    const canvas = document.getElementById('simCanvas');
+    const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const distanceDisplay = document.getElementById('distanceDisplay');
-    const timeDisplay = document.getElementById('timeDisplay');
-    const accelIndicator = document.getElementById('accelIndicator');
-    const rampHeightSelect = document.getElementById('rampHeight');
-    const startBtn = document.getElementById('startBtn');
-    const resetBtn = document.getElementById('resetBtn');
 
-    // Load the car image using the provided URL
-    const carImg = new Image();
-    carImg.src = "https://png.pngtree.com/png-clipart/20230821/original/pngtree-retro-black-and-white-style-illustration-of-a-soap-box-derby-or-soapbox-car-racer-racing-in-competition-viewed-from-side-on-high-angle-on-isolated-white-background-picture-image_8118339.png";
+    const timeDisplay = document.getElementById('time');
+    const distanceDisplay = document.getElementById('distance');
+    const rampHeightSelect = document.getElementById('rampHeightSelect');
+    const startButton = document.getElementById('startButton');
 
-    // Car drawing settings (adjust as needed)
-    const carWidth = 40;
-    const carHeight = 30;
+    // Simulation constants
+    const g = 9.8; // gravitational acceleration (ft/s²)
+    const L = 10;  // ramp length in ft (constant)
+    const pixelsPerUnit = 30; // scale factor for drawing
 
-    // We'll tint the car image red using an offscreen canvas.
-    let tintedCarImage = null;
-    function getTintedCarImage() {
-      if (tintedCarImage) return tintedCarImage;
-      const offCanvas = document.createElement('canvas');
-      offCanvas.width = carWidth;
-      offCanvas.height = carHeight;
-      const offCtx = offCanvas.getContext('2d');
-      offCtx.drawImage(carImg, 0, 0, carWidth, carHeight);
-      offCtx.globalCompositeOperation = 'source-atop';
-      offCtx.fillStyle = 'red';
-      offCtx.fillRect(0, 0, carWidth, carHeight);
-      offCtx.globalCompositeOperation = 'source-over';
-      tintedCarImage = offCanvas;
-      return tintedCarImage;
-    }
-
-    // Simulation variables
-    let animationId;
-    let startTime = null;
-    let elapsedTime = 0; // in milliseconds
-    let distance = 0;    // in simulation meters
-    let velocity = 0;    // internal value (m/s) used for updating position
-    // We'll use trialAcceleration for this trial run with a small random variation.
-    let trialAcceleration = 0;
+    let theta = 0;          // ramp angle in radians
+    let acceleration = 0;   // acceleration along the ramp (ft/s²)
+    let simTime = 0;        // simulation time in seconds
+    let startTime = 0;      // timestamp when simulation starts
+    let animationFrameId;   // for the animation loop
     let simulationRunning = false;
+    let timeVariation = 1;  // random multiplier for time
 
-    // Simulation settings
-    const totalSimDistance = 10; // total simulated distance in meters
-    const canvasMargin = 50;     // margin for drawing the ramp on the canvas
+    // Define ramp starting point in canvas coordinates
+    const rampStartX = 50;
+    const rampStartY = 100;
 
-    // Define ramp start and end points on the canvas.
-    // The car will start at the top of the ramp (rampEnd) and move toward the bottom (rampStart)
-    const rampStart = { x: canvasMargin, y: canvas.height - canvasMargin };
-    const rampEnd = { x: canvas.width - canvasMargin, y: canvasMargin };
-
-    // Calculate the ramp length in pixels
-    const rampPixelLength = Math.hypot(rampEnd.x - rampStart.x, rampEnd.y - rampStart.y);
-
-    // Convert simulation distance (meters) to pixels along the ramp
-    function simDistanceToPixels(simDistance) {
-      return (simDistance / totalSimDistance) * rampPixelLength;
+    // Compute ramp parameters based on the selected ramp height (in ft).
+    function computeRampParameters(rampHeight) {
+      // Compute angle: sin(theta) = rampHeight / L
+      theta = Math.asin(rampHeight / L);
+      acceleration = g * Math.sin(theta);
     }
 
-    // Draw the ramp on the canvas
+    // Draw the ramp as a line from the start point to the computed end point.
     function drawRamp() {
+      const rampEndX = rampStartX + L * Math.cos(theta) * pixelsPerUnit;
+      const rampEndY = rampStartY + L * Math.sin(theta) * pixelsPerUnit;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(rampStart.x, rampStart.y);
-      ctx.lineTo(rampEnd.x, rampEnd.y);
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#555';
+      ctx.moveTo(rampStartX, rampStartY);
+      ctx.lineTo(rampEndX, rampEndY);
       ctx.stroke();
     }
 
-    // Draw the car at a given simulation distance.
-    // The car starts at the top of the ramp (rampEnd) and moves toward the bottom (rampStart)
-    function drawCar(simDistance) {
-      const dPixels = simDistanceToPixels(simDistance);
-      const x = rampEnd.x + ((rampStart.x - rampEnd.x) * (dPixels / rampPixelLength));
-      const y = rampEnd.y + ((rampStart.y - rampEnd.y) * (dPixels / rampPixelLength));
-      if (carImg.complete) {
-        const tintedImg = getTintedCarImage();
-        ctx.drawImage(tintedImg, x - carWidth / 2, y - carHeight / 2, carWidth, carHeight);
-      } else {
-        ctx.fillStyle = 'red';
-        ctx.fillRect(x - carWidth / 2, y - carHeight / 2, carWidth, carHeight);
-      }
+    // Draw the car as a small red rectangle moving along the ramp.
+    function drawCar(s) {
+      // Compute the car's position along the ramp.
+      const carX = rampStartX + s * Math.cos(theta) * pixelsPerUnit;
+      const carY = rampStartY + s * Math.sin(theta) * pixelsPerUnit;
+      
+      // Car dimensions (in pixels)
+      const carWidth = 20;
+      const carHeight = 10;
+      
+      ctx.save();
+      ctx.translate(carX, carY);
+      ctx.rotate(theta);
+      ctx.fillStyle = '#ff0000';
+      // Center the rectangle on the car's position.
+      ctx.fillRect(-carWidth / 2, -carHeight / 2, carWidth, carHeight);
+      ctx.restore();
     }
 
-    // Update the on-screen displays for distance and time
-    function updateDisplay() {
-      distanceDisplay.textContent = distance.toFixed(2);
-      timeDisplay.textContent = (elapsedTime / 1000).toFixed(2);
-    }
-
-    // Main animation loop using requestAnimationFrame
-    function animate(timestamp) {
-      if (!startTime) startTime = timestamp;
-      const deltaTime = 0.016; // Fixed time step in seconds (~60fps)
-
-      // Clear the canvas and redraw the ramp
+    // Clear the canvas and redraw the ramp and car.
+    function drawScene(s) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#303030';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       drawRamp();
+      drawCar(s);
+    }
 
-      // For the first half of the ramp, update velocity to simulate acceleration
-      if (distance < totalSimDistance / 2) {
-        velocity += trialAcceleration * deltaTime;
-        accelIndicator.textContent = "Accelerating";
-      } else {
-        accelIndicator.textContent = "Constant Speed";
-      }
-
-      // Update distance traveled and elapsed time
-      distance += velocity * deltaTime;
-      elapsedTime += deltaTime * 1000;
-
-      updateDisplay();
-      drawCar(distance);
-
-      if (distance < totalSimDistance) {
-        animationId = requestAnimationFrame(animate);
-      } else {
-        accelIndicator.textContent = "Finished";
+    // Animation loop: update time, compute displacement, and redraw.
+    function animate() {
+      const currentTime = performance.now();
+      simTime = (currentTime - startTime) / 1000; // seconds
+      
+      // Apply the random time multiplier to simulate trial-to-trial variation.
+      let effectiveTime = simTime * timeVariation;
+      
+      // Compute displacement along the ramp: s = ½ * a * (effectiveTime)² (in ft)
+      let s = 0.5 * acceleration * effectiveTime * effectiveTime;
+      if (s > L) {
+        s = L;
         simulationRunning = false;
       }
+      
+      // Update on-screen info: display the effective time.
+      timeDisplay.textContent = effectiveTime.toFixed(2);
+      distanceDisplay.textContent = L.toFixed(2);
+      
+      // Redraw the scene.
+      drawScene(s);
+      
+      if (simulationRunning) {
+        animationFrameId = requestAnimationFrame(animate);
+      }
     }
 
-    // Start the simulation when the Start button is clicked
-    startBtn.addEventListener('click', function() {
-      if (!simulationRunning) {
-        simulationRunning = true;
-        startTime = null;
-        elapsedTime = 0;
-        distance = 0;
-        velocity = 0;
-        // Apply a ±10% random variation to the base acceleration value from the ramp height selector
-        const baseAcceleration = parseFloat(rampHeightSelect.value);
-        trialAcceleration = baseAcceleration * (1 + (Math.random() * 0.2 - 0.1));
-        accelIndicator.textContent = "";
-        animationId = requestAnimationFrame(animate);
-      }
-    });
+    // Start the simulation.
+    function startSimulation() {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      simTime = 0;
+      startTime = performance.now();
+      simulationRunning = true;
+      
+      // Generate a random time variation offset between 0.1 and 0.3, then randomly apply a plus or minus.
+      let offset = Math.random() * 0.2 + 0.1; // value between 0.1 and 0.3
+      if (Math.random() < 0.5) offset = -offset;
+      timeVariation = 1 + offset; // multiplier between 0.7 and 1.3
+      
+      // Get the ramp height value (in ft) from the drop-down.
+      const rampHeight = parseFloat(rampHeightSelect.value);
+      computeRampParameters(rampHeight);
+      
+      animate();
+    }
 
-    // Reset the simulation when the Reset button is clicked
-    resetBtn.addEventListener('click', function() {
-      simulationRunning = false;
-      cancelAnimationFrame(animationId);
-      startTime = null;
-      elapsedTime = 0;
-      distance = 0;
-      velocity = 0;
-      accelIndicator.textContent = "-";
-      updateDisplay();
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawRamp();
-      drawCar(0);
-    });
+    startButton.addEventListener('click', startSimulation);
 
-    // Initial drawing of ramp and car once the page loads
-    window.onload = function() {
-      drawRamp();
-      drawCar(0);
-    };
+    // Draw the initial scene using default ramp height.
+    computeRampParameters(parseFloat(rampHeightSelect.value));
+    drawScene(0);
   </script>
 </body>
 </html>
