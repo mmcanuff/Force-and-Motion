@@ -1,186 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Soapbox Superstock Cars Simulation</title>
+  <meta charset="UTF-8">
+  <title>Soapbox Car Collision Simulation</title>
   <style>
-    body { margin: 0; overflow: hidden; }
-    canvas { display: block; }
+    body { font-family: sans-serif; background: #eef; text-align: center; }
+    canvas { border: 1px solid #333; background: #fff; margin: 20px auto; }
+    .controls { max-width: 400px; margin: 10px auto; text-align: left; }
+    .controls label, select, button { width: 100%; padding: 5px; margin: 5px 0; }
   </style>
-  <!-- Three.js Library -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- Cannon.js Physics Engine -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon-es/0.18.0/cannon-es.min.js"></script>
 </head>
 <body>
-<script>
-  let scene, camera, renderer, world;
-  const cars = [];
-  const cones = [];
-  
-  // Initialize scene, physics and objects
-  function init() {
-    // THREE.js Scene Setup
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB);
+  <h1>Soapbox Car Collision Simulation</h1>
 
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
-    camera.position.set(0, 5, 10);
+  <div class="controls">
+    <label>Collision Type:
+      <select id="collisionType">
+        <option value="car">Car vs Car</option>
+        <option value="cone">Car vs Cone</option>
+      </select>
+    </label>
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+    <label>Left Car Mass:
+      <select id="massA">
+        <option value="0.05">50 g</option>
+        <option value="0.1">100 g</option>
+      </select>
+    </label>
 
-    // Add a directional light for clarity
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(5, 10, 5);
-    scene.add(light);
+    <label>Left Car Speed:
+      <select id="speedA">
+        <option value="20">20 m/s</option>
+        <option value="40">40 m/s</option>
+      </select>
+    </label>
 
-    // Cannon.js Physics World
-    world = new CANNON.World();
-    world.gravity.set(0, -9.8, 0);
-    world.broadphase = new CANNON.NaiveBroadphase();
-    world.solver.iterations = 10;
+    <label>Right Car Mass (Car vs Car only):
+      <select id="massB">
+        <option value="0.05">50 g</option>
+        <option value="0.1">100 g</option>
+      </select>
+    </label>
 
-    // Create a sloped ground (inclined plane)
-    const groundMaterial = new CANNON.Material("groundMaterial");
-    const groundBody = new CANNON.Body({
-      mass: 0,
-      material: groundMaterial
-    });
-    // Use a plane shape and rotate it to get an incline
-    groundBody.addShape(new CANNON.Plane());
-    // Rotate around the X-axis to create a slope (about 22.5° incline)
-    groundBody.quaternion.setFromEuler(-Math.PI / 8, 0, 0);
-    world.addBody(groundBody);
+    <label>Right Car Speed:
+      <select id="speedB">
+        <option value="20">20 m/s</option>
+        <option value="40">40 m/s</option>
+      </select>
+    </label>
 
-    // Visual ground in Three.js
-    const groundGeo = new THREE.PlaneGeometry(50, 50);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x228B22, side: THREE.DoubleSide });
-    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
-    groundMesh.rotation.x = -Math.PI / 8;
-    scene.add(groundMesh);
+    <button onclick="startSimulation()">Start Simulation</button>
+    <div id="results">Status: --</div>
+  </div>
 
-    // Create two cars
-    createCar(-2, 2, 0xff0000); // Red car
-    createCar(2, 2, 0x0000ff);  // Blue car
+  <canvas id="simCanvas" width="800" height="200"></canvas>
 
-    // Create traffic cones as obstacles
-    for (let i = -4; i <= 4; i += 2) {
-      createCone(i, -2);
+  <script>
+    const canvas = document.getElementById("simCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const carWidth = 90, carHeight = 60;
+    const carY = canvas.height / 2 - carHeight / 2;
+
+    let carA, carB, cone;
+    let simulationRunning = false;
+    let collisionOccurred = false;
+
+    const carRightImg = new Image();
+    carRightImg.src = "https://mmcanuff.github.io/Force-and-Motion/car%20facing%20right.png";
+
+    const carLeftImg = new Image();
+    carLeftImg.src = "https://mmcanuff.github.io/Force-and-Motion/car%20facing%20left.png";
+
+    const coneImg = new Image();
+    coneImg.src = "https://cdn.pixabay.com/photo/2014/04/10/14/01/cone-320960_640.png";
+
+    const resultsDiv = document.getElementById("results");
+
+    function startSimulation() {
+      collisionOccurred = false;
+      simulationRunning = true;
+
+      const type = document.getElementById("collisionType").value;
+
+      carA = { x: 50, y: carY, velocity: parseFloat(document.getElementById("speedA").value) / 10, mass: parseFloat(document.getElementById("massA").value) };
+
+      if (type === "car") {
+        carB = { x: canvas.width - 140, y: carY, velocity: -parseFloat(document.getElementById("speedB").value) / 10, mass: parseFloat(document.getElementById("massB").value) };
+        cone = null;
+      } else {
+        cone = { x: canvas.width / 2, y: carY, width: 40, height: 60, velocity: 0 };
+        carB = null;
+      }
+
+      resultsDiv.innerText = "Simulation running...";
+      requestAnimationFrame(gameLoop);
     }
 
-    // Resize event listener
-    window.addEventListener('resize', onWindowResize, false);
+    function update() {
+      carA.x += carA.velocity;
 
-    animate();
-  }
+      if (carB) {
+        carB.x += carB.velocity;
+        if (!collisionOccurred && carA.x + carWidth >= carB.x) {
+          collisionOccurred = true;
+          const vA = ((carA.mass - carB.mass) * carA.velocity + 2 * carB.mass * carB.velocity) / (carA.mass + carB.mass);
+          const vB = ((carB.mass - carA.mass) * carB.velocity + 2 * carA.mass * carA.velocity) / (carA.mass + carB.mass);
+          carA.velocity = vA * 0.8;
+          carB.velocity = vB * 0.8;
+          resultsDiv.innerText = "Collision: Car vs Car";
+        }
+      }
 
-  // Adjust renderer and camera aspect on window resize
-  function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  }
+      if (cone) {
+        if (!collisionOccurred && carA.x + carWidth >= cone.x) {
+          collisionOccurred = true;
+          cone.velocity = carA.velocity * 0.6;
+          carA.velocity *= 0.4;
+          resultsDiv.innerText = "Collision: Car vs Cone";
+        }
+        cone.x += cone.velocity;
+        cone.velocity *= 0.95;
+      }
 
-  // Create a car with a box body and four wheels
-  function createCar(x, z, color) {
-    // Create a group for the car visual
-    const carGroup = new THREE.Group();
-    
-    // Car body
-    const bodyGeometry = new THREE.BoxGeometry(1, 0.5, 2);
-    const bodyMaterial = new THREE.MeshStandardMaterial({ color: color });
-    const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    bodyMesh.position.set(0, 0.25, 0);
-    carGroup.add(bodyMesh);
-
-    // Wheels - four cylinders
-    const wheelGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.1, 16);
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
-    const wheelPositions = [
-      [-0.4, 0, 0.8],
-      [0.4, 0, 0.8],
-      [-0.4, 0, -0.8],
-      [0.4, 0, -0.8]
-    ];
-    wheelPositions.forEach(pos => {
-      const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-      wheel.rotation.z = Math.PI / 2;
-      wheel.position.set(pos[0], 0.1, pos[2]);
-      carGroup.add(wheel);
-    });
-    
-    scene.add(carGroup);
-
-    // Create a corresponding Cannon.js body for the car
-    const boxShape = new CANNON.Box(new CANNON.Vec3(0.5, 0.25, 1));
-    const carBody = new CANNON.Body({
-      mass: 5,
-      shape: boxShape,
-      position: new CANNON.Vec3(x, 2, z)
-    });
-    world.addBody(carBody);
-
-    // Store both visual and physics objects
-    cars.push({ group: carGroup, body: carBody });
-  }
-
-  // Create a traffic cone as an obstacle
-  function createCone(x, z) {
-    // Cone visual using a cone geometry
-    const coneGeo = new THREE.ConeGeometry(0.3, 1, 16);
-    const coneMat = new THREE.MeshStandardMaterial({ color: 0xffa500 });
-    const coneMesh = new THREE.Mesh(coneGeo, coneMat);
-    scene.add(coneMesh);
-
-    // Create a corresponding physics body (approximate with a cylinder)
-    const coneShape = new CANNON.Cylinder(0.3, 0.3, 1, 16);
-    const coneBody = new CANNON.Body({
-      mass: 1,
-      shape: coneShape,
-      position: new CANNON.Vec3(x, 0.5, z)
-    });
-    world.addBody(coneBody);
-
-    cones.push({ mesh: coneMesh, body: coneBody });
-  }
-
-  // Animation loop: update physics, sync positions, and render scene
-  function animate() {
-    requestAnimationFrame(animate);
-    
-    // Step the physics world
-    world.step(1/60);
-
-    // Update cars from physics bodies
-    cars.forEach(car => {
-      car.group.position.copy(car.body.position);
-      car.group.quaternion.copy(car.body.quaternion);
-    });
-
-    // Update cones from physics bodies
-    cones.forEach(cone => {
-      cone.mesh.position.copy(cone.body.position);
-      cone.mesh.quaternion.copy(cone.body.quaternion);
-    });
-
-    // Camera follows the first car with a slight offset
-    if(cars.length > 0) {
-      const targetPos = new THREE.Vector3(
-        cars[0].body.position.x,
-        cars[0].body.position.y + 2,
-        cars[0].body.position.z + 5
-      );
-      camera.position.lerp(targetPos, 0.05);
-      camera.lookAt(cars[0].body.position);
+      if (carA.x > canvas.width || (carB && carB.x < 0)) simulationRunning = false;
     }
 
-    renderer.render(scene, camera);
-  }
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(carRightImg, carA.x, carA.y, carWidth, carHeight);
 
-  // Start the simulation
-  init();
-</script>
+      if (carB) ctx.drawImage(carLeftImg, carB.x, carB.y, carWidth, carHeight);
+      if (cone) ctx.drawImage(coneImg, cone.x, cone.y, cone.width, cone.height);
+    }
+
+    function gameLoop() {
+      if (!simulationRunning) return;
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+  </script>
 </body>
 </html>
