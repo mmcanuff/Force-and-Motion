@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aerodynamics and Air Resistance Simulation</title>
     <style>
         canvas {
@@ -22,12 +21,10 @@
             <option value="crouching">Crouching</option>
             <option value="leaning">Leaning Forward</option>
         </select>
-        <label for="windToggle">Wind:</label>
-        <button id="windToggle" onclick="toggleWind()">Off</button>
-        <span id="windValue">0</span>
         <button onclick="startSimulation()">Start Simulation</button>
         <p>Time: <span id="timeElapsed">0</span> seconds</p>
-        <p>Distance: <span id="distanceTravelled">0</span> px </p>
+        <!-- The distance is constant at 30 ft -->
+        <p>Distance: <span id="distanceTravelled">30 ft</span></p>
     </div>
     <script>
         const canvas = document.getElementById("raceCanvas");
@@ -40,46 +37,46 @@
             draw(); // Draw background and car before simulation starts
         };
         
+        // Images for different driver positions
+        const crouchingImg = new Image();
+        crouchingImg.src = "https://mmcanuff.github.io/Force-and-Motion/crouching.png";
+        
+        const uprightImg = new Image();
+        uprightImg.src = "https://mmcanuff.github.io/Force-and-Motion/upright.png";
+        
+        const leaningImg = new Image();
+        leaningImg.src = "https://mmcanuff.github.io/Force-and-Motion/leaning.png";
+        
         // Car properties
         const car = {
-            x: 350, // Start position on ramp
-            y: 120, // Start height on ramp
+            x: 350,  // Start position on ramp
+            y: 120,  // Start height on ramp
             velocity: 0,
-            acceleration: 0.2, // Gravity
-            drag: 0.01, // Wind resistance
+            acceleration: 0.2, // Gravity-based acceleration (adjusted by driver position)
+            drag: 0.012,       // Air resistance factor (default for "sitting straight")
             maxSpeed: 10,
-            driverPosition: "straight", // User-controlled
+            driverPosition: "straight" // Possible values: "straight", "crouching", "leaning"
         };
         
-        // Wind properties (user-controlled)
-        let windEnabled = false;
         let simulationRunning = false;
         let startTime, endTime;
         
-        // Load car image
-        const carImg = new Image();
-        carImg.src = "https://static.thenounproject.com/png/333147-512.png"; 
-        
-        // Handle user inputs
+        // Adjust car properties based on driver position
         function changeDriverPosition(position) {
             car.driverPosition = position;
             if (position === "crouching") {
                 car.drag = 0.0025;
-                car.acceleration = 0.3; // Faster acceleration due to less air resistance // Significantly less air resistance // Less air resistance
+                car.acceleration = 0.3; // Less air resistance, faster acceleration
             } else if (position === "leaning") {
                 car.drag = 0.006;
-                car.acceleration = 0.25; // Moderate acceleration // Moderate air resistance
-            } else {
+                car.acceleration = 0.25; // Moderate acceleration
+            } else if (position === "straight") {
                 car.drag = 0.012;
-                car.acceleration = 0.2; // Slowest acceleration due to most air resistance // Most air resistance // Default resistance
+                car.acceleration = 0.2; // More air resistance, slower acceleration
             }
         }
         
-        function toggleWind() {
-            windEnabled = !windEnabled;
-            document.getElementById("windToggle").innerText = windEnabled ? "On" : "Off";
-        }
-        
+        // Start the simulation
         function startSimulation() {
             if (!simulationRunning) {
                 simulationRunning = true;
@@ -91,17 +88,12 @@
             }
         }
         
-        // Simulation loop
+        // Update car position
         function update() {
             if (!simulationRunning) return;
             
-            // Apply gravity
+            // Apply gravity-based acceleration
             car.velocity += car.acceleration;
-            
-            // Apply wind resistance
-            if (windEnabled) {
-                car.velocity -= car.drag * 0.5; // Increased wind impact
-            } // Increase wind impact
             
             // Limit max speed
             if (car.velocity > car.maxSpeed) {
@@ -111,14 +103,15 @@
                 car.velocity = 0;
             }
             
-            // Move car down the ramp
-            // car.x remains the same
+            // Move the car down the ramp (y direction)
             car.y += car.velocity;
-            car.y += car.velocity * 0.5; // Adjust based on ramp slope
+            car.y += car.velocity * 0.5; // Adjust for ramp slope
             
-            document.getElementById("distanceTravelled").innerText = (Math.round((car.y - 120) * 0.1)).toFixed(1) + ' m';
+            // Instead of computing the distance dynamically, we keep it constant at 30 ft.
+            document.getElementById("distanceTravelled").innerText = "30 ft";
             
-            if (car.y >= 350) { // Finish line
+            // Check if car crosses the finish line (y >= 350)
+            if (car.y >= 350) {
                 endTime = performance.now();
                 let timeTaken = ((endTime - startTime) / 1000).toFixed(2);
                 document.getElementById("timeElapsed").innerText = timeTaken;
@@ -126,37 +119,39 @@
             }
         }
         
-        // Draw scene
+        // Draw the scene
         function draw() {
             drawRamp();
             drawGrid();
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
-            ctx.drawImage(carImg, car.x, car.y, 50, 30);
+            // Draw the car based on driver position with increased size (1.5 times larger)
+            if (car.driverPosition === "crouching") {
+                ctx.drawImage(crouchingImg, car.x, car.y, 90, 60);
+            } else if (car.driverPosition === "straight") {
+                ctx.drawImage(uprightImg, car.x, car.y, 90, 60);
+            } else if (car.driverPosition === "leaning") {
+                ctx.drawImage(leaningImg, car.x, car.y, 90, 60);
+            }
         }
         
-        // Main loop
+        // Draw grid lines for reference
         function drawGrid() {
             ctx.strokeStyle = 'gray';
             ctx.lineWidth = 0.5;
-            
-            // Draw vertical grid lines
             for (let x = 0; x < canvas.width; x += 50) {
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
                 ctx.lineTo(x, canvas.height);
                 ctx.stroke();
             }
-            
-            // Draw horizontal grid lines
             for (let y = 0; y < canvas.height; y += 50) {
                 ctx.beginPath();
                 ctx.moveTo(0, y);
                 ctx.lineTo(canvas.width, y);
                 ctx.stroke();
             }
-            
-            // Draw x and y axes
+            // Draw axes
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 1;
             ctx.beginPath();
@@ -168,7 +163,8 @@
             ctx.lineTo(canvas.width / 2, canvas.height);
             ctx.stroke();
         }
-
+        
+        // Draw the ramp as a brown line
         function drawRamp() {
             ctx.strokeStyle = 'brown';
             ctx.lineWidth = 4;
@@ -177,7 +173,8 @@
             ctx.lineTo(350, 200);
             ctx.stroke();
         }
-
+        
+        // Main loop
         function gameLoop() {
             if (simulationRunning) {
                 update();
