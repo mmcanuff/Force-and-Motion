@@ -7,7 +7,7 @@
     body { 
       margin: 0; 
       font-family: sans-serif; 
-      background: #202020; 
+      background: green; /* Green page background */
       color: #fff; 
     }
     #info, #controls {
@@ -21,14 +21,14 @@
     #controls select, #controls button { margin-top: 5px; }
     canvas { 
       display: block; 
-      margin: 0 auto; 
-      background: #303030;
+      margin: 100px auto 0 auto; /* Canvas starts further down */
+      background: #ffffff; /* White canvas background */
     }
   </style>
 </head>
 <body>
   <div id="info">
-    <strong>Simulation Info</strong><br>
+    <strong>Race Report</strong><br>
     Time: <span id="time">0.00</span> s<br>
     Ramp Distance: <span id="distance">10.00</span> ft
   </div>
@@ -73,7 +73,6 @@
 
     // Compute ramp parameters based on the selected ramp height (in ft).
     function computeRampParameters(rampHeight) {
-      // Compute angle: sin(theta) = rampHeight / L
       theta = Math.asin(rampHeight / L);
       acceleration = g * Math.sin(theta);
     }
@@ -82,7 +81,7 @@
     function drawRamp() {
       const rampEndX = rampStartX + L * Math.cos(theta) * pixelsPerUnit;
       const rampEndY = rampStartY + L * Math.sin(theta) * pixelsPerUnit;
-      ctx.strokeStyle = '#fff';
+      ctx.strokeStyle = '#000'; // Black ramp line for contrast on white
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(rampStartX, rampStartY);
@@ -92,11 +91,8 @@
 
     // Draw the car as a small red rectangle moving along the ramp.
     function drawCar(s) {
-      // Compute the car's position along the ramp.
       const carX = rampStartX + s * Math.cos(theta) * pixelsPerUnit;
       const carY = rampStartY + s * Math.sin(theta) * pixelsPerUnit;
-      
-      // Car dimensions (in pixels)
       const carWidth = 20;
       const carHeight = 10;
       
@@ -104,7 +100,6 @@
       ctx.translate(carX, carY);
       ctx.rotate(theta);
       ctx.fillStyle = '#ff0000';
-      // Center the rectangle on the car's position.
       ctx.fillRect(-carWidth / 2, -carHeight / 2, carWidth, carHeight);
       ctx.restore();
     }
@@ -112,7 +107,7 @@
     // Clear the canvas and redraw the ramp and car.
     function drawScene(s) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#303030';
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       drawRamp();
       drawCar(s);
@@ -121,23 +116,17 @@
     // Animation loop: update time, compute displacement, and redraw.
     function animate() {
       const currentTime = performance.now();
-      simTime = (currentTime - startTime) / 1000; // seconds
-      
-      // Apply the random time multiplier to simulate trial-to-trial variation.
+      simTime = (currentTime - startTime) / 1000;
       let effectiveTime = simTime * timeVariation;
-      
-      // Compute displacement along the ramp: s = ½ * a * (effectiveTime)² (in ft)
       let s = 0.5 * acceleration * effectiveTime * effectiveTime;
       if (s > L) {
         s = L;
         simulationRunning = false;
       }
       
-      // Update on-screen info: display the effective time.
       timeDisplay.textContent = effectiveTime.toFixed(2);
       distanceDisplay.textContent = L.toFixed(2);
       
-      // Redraw the scene.
       drawScene(s);
       
       if (simulationRunning) {
@@ -152,12 +141,10 @@
       startTime = performance.now();
       simulationRunning = true;
       
-      // Generate a random time variation offset between 0.1 and 0.3, then randomly apply a plus or minus.
-      let offset = Math.random() * 0.2 + 0.1; // value between 0.1 and 0.3
+      let offset = Math.random() * 0.2 + 0.1;
       if (Math.random() < 0.5) offset = -offset;
-      timeVariation = 1 + offset; // multiplier between 0.7 and 1.3
+      timeVariation = 1 + offset;
       
-      // Get the ramp height value (in ft) from the drop-down.
       const rampHeight = parseFloat(rampHeightSelect.value);
       computeRampParameters(rampHeight);
       
@@ -166,7 +153,6 @@
 
     startButton.addEventListener('click', startSimulation);
 
-    // Draw the initial scene using default ramp height.
     computeRampParameters(parseFloat(rampHeightSelect.value));
     drawScene(0);
   </script>
